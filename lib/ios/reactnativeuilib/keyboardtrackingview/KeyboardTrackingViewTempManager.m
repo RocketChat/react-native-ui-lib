@@ -108,58 +108,58 @@ typedef NS_ENUM(NSUInteger, KeyboardTrackingScrollBehavior) {
     return nil;
 }
 
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    if (!_allowHitsOutsideBounds) {
-        return [super hitTest:point withEvent:event];
-    }
-    
-    if (self.isHidden || self.alpha == 0 || self.clipsToBounds) {
-        return nil;
-    }
-    
-    UIView *subview = [super hitTest:point withEvent:event];
-    if (subview == nil) {
-        NSArray<UIView*>* allSubviews = [self getBreadthFirstSubviewsForView:self];
-        for (UIView *tmpSubview in allSubviews) {
-            CGPoint pointInSubview = [self convertPoint:point toView:tmpSubview];
-            if ([tmpSubview pointInside:pointInSubview withEvent:event]) {
-                subview = tmpSubview;
-                break;
-            }
-        }
-    }
-    
-    return subview;
-}
+//- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+//    if (!_allowHitsOutsideBounds) {
+//        return [super hitTest:point withEvent:event];
+//    }
+//
+//    if (self.isHidden || self.alpha == 0 || self.clipsToBounds) {
+//        return nil;
+//    }
+//
+//    UIView *subview = [super hitTest:point withEvent:event];
+//    if (subview == nil) {
+//        NSArray<UIView*>* allSubviews = [self getBreadthFirstSubviewsForView:self];
+//        for (UIView *tmpSubview in allSubviews) {
+//            CGPoint pointInSubview = [self convertPoint:point toView:tmpSubview];
+//            if ([tmpSubview pointInside:pointInSubview withEvent:event]) {
+//                subview = tmpSubview;
+//                break;
+//            }
+//        }
+//    }
+//
+//    return subview;
+//}
 
--(void)_swizzleWebViewInputAccessory:(WKWebView*)webview
-{
-    UIView* subview;
-    for (UIView* view in webview.scrollView.subviews)
-    {
-        if([[view.class description] hasPrefix:@"UIWeb"])
-        {
-            subview = view;
-        }
-    }
-    
-    if(_newClass == nil)
-    {
-        NSString* name = [NSString stringWithFormat:@"%@_Tracking_%p", subview.class, self];
-        _newClass = NSClassFromString(name);
-        
-        _newClass = objc_allocateClassPair(subview.class, [name cStringUsingEncoding:NSASCIIStringEncoding], 0);
-        if(!_newClass) return;
-        
-        Method method = class_getInstanceMethod([UIResponder class], @selector(inputAccessoryView));
-        class_addMethod(_newClass, @selector(inputAccessoryView), imp_implementationWithBlock(^(id _self){return _ObservingInputAccessoryViewTemp;}), method_getTypeEncoding(method));
-        
-        objc_registerClassPair(_newClass);
-    }
-    
-    object_setClass(subview, _newClass);
-    [subview reloadInputViews];
-}
+//-(void)_swizzleWebViewInputAccessory:(WKWebView*)webview
+//{
+//    UIView* subview;
+//    for (UIView* view in webview.scrollView.subviews)
+//    {
+//        if([[view.class description] hasPrefix:@"UIWeb"])
+//        {
+//            subview = view;
+//        }
+//    }
+//
+//    if(_newClass == nil)
+//    {
+//        NSString* name = [NSString stringWithFormat:@"%@_Tracking_%p", subview.class, self];
+//        _newClass = NSClassFromString(name);
+//
+//        _newClass = objc_allocateClassPair(subview.class, [name cStringUsingEncoding:NSASCIIStringEncoding], 0);
+//        if(!_newClass) return;
+//
+//        Method method = class_getInstanceMethod([UIResponder class], @selector(inputAccessoryView));
+//        class_addMethod(_newClass, @selector(inputAccessoryView), imp_implementationWithBlock(^(id _self){return _ObservingInputAccessoryViewTemp;}), method_getTypeEncoding(method));
+//
+//        objc_registerClassPair(_newClass);
+//    }
+//
+//    object_setClass(subview, _newClass);
+//    [subview reloadInputViews];
+//}
 
 -(void)layoutSubviews
 {
@@ -169,6 +169,9 @@ typedef NS_ENUM(NSUInteger, KeyboardTrackingScrollBehavior) {
 
 - (void)initializeAccessoryViewsAndHandleInsets
 {
+    if (self.window == nil) {
+        return;
+    }
     NSArray<UIView*>* allSubviews = [self getBreadthFirstSubviewsForView:[self getRootView]];
     NSMutableArray<RCTScrollView*>* rctScrollViewsArray = [NSMutableArray array];
     
@@ -200,50 +203,55 @@ typedef NS_ENUM(NSUInteger, KeyboardTrackingScrollBehavior) {
             }
         }
         
-        if ([className isEqualToString:@"RCTTextField"])
-        {
-            UITextField *textField = nil;
-            Ivar backedTextInputIvar = class_getInstanceVariable([subview class], "_backedTextInput");
-            if (backedTextInputIvar != NULL)
-            {
-                textField = [subview valueForKey:@"_backedTextInput"];
-            }
-            else if([subview isKindOfClass:[UITextField class]])
-            {
-                textField = (UITextField*)subview;
-            }
-            [self setupTextField:textField];
-        }
-        else if ([className isEqualToString:@"RCTUITextField"])
-        {
-            [self setupTextField:(UITextField*)subview];
-        }
-        else if ([className isEqualToString:@"RCTMultilineTextInputView"])
+        if ([className isEqualToString:@"RCTMultilineTextInputView"])
         {
             [self setupTextView:[subview valueForKey:@"_backedTextInputView"]];
         }
-        else if ([className isEqualToString:@"RCTTextView"])
-        {
-            UITextView *textView = nil;
-            Ivar backedTextInputIvar = class_getInstanceVariable([subview class], "_backedTextInput");
-            if (backedTextInputIvar != NULL)
-            {
-                textView = [subview valueForKey:@"_backedTextInput"];
-            }
-            else if([subview isKindOfClass:[UITextView class]])
-            {
-                textView = (UITextView*)subview;
-            }
-            [self setupTextView:textView];
-        }
-        else if ([className isEqualToString:@"RCTUITextView"])
-        {
-            [self setupTextView:(UITextView*)subview];
-        }
-        else if ([subview isKindOfClass:[WKWebView class]])
-        {
-            [self _swizzleWebViewInputAccessory:(WKWebView*)subview];
-        }
+        
+//        if ([className isEqualToString:@"RCTTextField"])
+//        {
+//            UITextField *textField = nil;
+//            Ivar backedTextInputIvar = class_getInstanceVariable([subview class], "_backedTextInput");
+//            if (backedTextInputIvar != NULL)
+//            {
+//                textField = [subview valueForKey:@"_backedTextInput"];
+//            }
+//            else if([subview isKindOfClass:[UITextField class]])
+//            {
+//                textField = (UITextField*)subview;
+//            }
+//            [self setupTextField:textField];
+//        }
+//        else if ([className isEqualToString:@"RCTUITextField"])
+//        {
+//            [self setupTextField:(UITextField*)subview];
+//        }
+//        else if ([className isEqualToString:@"RCTMultilineTextInputView"])
+//        {
+//            [self setupTextView:[subview valueForKey:@"_backedTextInputView"]];
+//        }
+//        else if ([className isEqualToString:@"RCTTextView"])
+//        {
+//            UITextView *textView = nil;
+//            Ivar backedTextInputIvar = class_getInstanceVariable([subview class], "_backedTextInput");
+//            if (backedTextInputIvar != NULL)
+//            {
+//                textView = [subview valueForKey:@"_backedTextInput"];
+//            }
+//            else if([subview isKindOfClass:[UITextView class]])
+//            {
+//                textView = (UITextView*)subview;
+//            }
+//            [self setupTextView:textView];
+//        }
+//        else if ([className isEqualToString:@"RCTUITextView"])
+//        {
+//            [self setupTextView:(UITextView*)subview];
+//        }
+//        else if ([subview isKindOfClass:[WKWebView class]])
+//        {
+//            [self _swizzleWebViewInputAccessory:(WKWebView*)subview];
+//        }
     }
     
     for (RCTScrollView *scrollView in rctScrollViewsArray)
@@ -346,7 +354,10 @@ typedef NS_ENUM(NSUInteger, KeyboardTrackingScrollBehavior) {
 {
     [super didMoveToWindow];
     
-    self.deferedInitializeAccessoryViewsCount = 0;
+    if (self.window == nil) {
+        self.deferedInitializeAccessoryViewsCount = 0;
+        return;
+    }
     
     [self deferedInitializeAccessoryViewsAndHandleInsets];
 }
